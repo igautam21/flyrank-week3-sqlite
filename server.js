@@ -117,6 +117,25 @@ app.put("/tasks/:id", (req, res) => {
 
 });
 
+// Delete task
+app.delete("/tasks/:id", (req, res) => {
+
+    const id = Number(req.params.id);
+
+    const result = db
+        .prepare("DELETE FROM tasks WHERE id = ?")
+        .run(id);
+
+    if (result.changes === 0) {
+        return res.status(404).json({
+            error: `Task ${id} not found`
+        });
+    }
+
+    res.status(204).send();
+
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
