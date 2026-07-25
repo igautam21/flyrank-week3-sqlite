@@ -1,3 +1,6 @@
+const swaggerUi = require("swagger-ui-express");
+const swaggerJsdoc = require("swagger-jsdoc");
+
 const express = require("express");
 const db = require("./database");
 
@@ -6,6 +9,27 @@ const app = express();
 app.use(express.json());
 
 const PORT = 3000;
+
+const options = {
+    definition: {
+        openapi: "3.0.0",
+        info: {
+            title: "Task API",
+            version: "2.0",
+            description: "SQLite CRUD API"
+        },
+        servers: [
+            {
+                url: `http://localhost:${PORT}`
+            }
+        ]
+    },
+    apis: ["./server.js"]
+};
+
+const swaggerSpec = swaggerJsdoc(options);
+
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get("/", (req, res) => {
     res.json({
@@ -18,6 +42,16 @@ app.get("/", (req, res) => {
         ]
     });
 });
+
+/**
+ * @swagger
+ * /tasks:
+ *   get:
+ *     summary: Get all tasks
+ *     responses:
+ *       200:
+ *         description: List of tasks
+ */
 
 app.get("/tasks", (req, res) => {
 
@@ -32,6 +66,24 @@ app.get("/tasks", (req, res) => {
     res.json(formatted);
 
 });
+
+/**
+ * @swagger
+ * /tasks/{id}:
+ *   get:
+ *     summary: Get one task
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Task found
+ *       404:
+ *         description: Task not found
+ */
 
 app.get("/tasks/:id", (req, res) => {
 
@@ -54,6 +106,25 @@ app.get("/tasks/:id", (req, res) => {
     });
 
 });
+
+/**
+ * @swagger
+ * /tasks:
+ *   post:
+ *     summary: Create a task
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Task created
+ */
 
 app.post("/tasks", (req, res) => {
 
@@ -80,6 +151,33 @@ app.post("/tasks", (req, res) => {
     });
 
 });
+
+/**
+ * @swagger
+ * /tasks/{id}:
+ *   put:
+ *     summary: Update a task
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               done:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Updated
+ */
 
 // Update task
 app.put("/tasks/:id", (req, res) => {
@@ -116,6 +214,22 @@ app.put("/tasks/:id", (req, res) => {
     });
 
 });
+
+/**
+ * @swagger
+ * /tasks/{id}:
+ *   delete:
+ *     summary: Delete a task
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Deleted
+ */
 
 // Delete task
 app.delete("/tasks/:id", (req, res) => {
