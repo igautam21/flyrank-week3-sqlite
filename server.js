@@ -55,6 +55,32 @@ app.get("/tasks/:id", (req, res) => {
 
 });
 
+app.post("/tasks", (req, res) => {
+
+    const { title } = req.body;
+
+    if (!title || title.trim() === "") {
+        return res.status(400).json({
+            error: "Title is required"
+        });
+    }
+
+    const result = db
+        .prepare("INSERT INTO tasks (title, done) VALUES (?, ?)")
+        .run(title, 0);
+
+    const newTask = db
+        .prepare("SELECT * FROM tasks WHERE id = ?")
+        .get(result.lastInsertRowid);
+
+    res.status(201).json({
+        id: newTask.id,
+        title: newTask.title,
+        done: Boolean(newTask.done)
+    });
+
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
