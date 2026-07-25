@@ -9,8 +9,50 @@ const PORT = 3000;
 
 app.get("/", (req, res) => {
     res.json({
-        message: "Week 3 SQLite API"
+        name: "Task API",
+        version: "2.0",
+        database: "SQLite",
+        endpoints: [
+            "/tasks",
+            "/tasks/:id"
+        ]
     });
+});
+
+app.get("/tasks", (req, res) => {
+
+    const tasks = db.prepare("SELECT * FROM tasks").all();
+
+    const formatted = tasks.map(task => ({
+        id: task.id,
+        title: task.title,
+        done: Boolean(task.done)
+    }));
+
+    res.json(formatted);
+
+});
+
+app.get("/tasks/:id", (req, res) => {
+
+    const id = Number(req.params.id);
+
+    const task = db
+        .prepare("SELECT * FROM tasks WHERE id = ?")
+        .get(id);
+
+    if (!task) {
+        return res.status(404).json({
+            error: `Task ${id} not found`
+        });
+    }
+
+    res.json({
+        id: task.id,
+        title: task.title,
+        done: Boolean(task.done)
+    });
+
 });
 
 app.listen(PORT, () => {
