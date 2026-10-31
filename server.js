@@ -1,22 +1,22 @@
+
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
-
 const express = require("express");
-const db = require("./database");
+
+const taskRepository = require("./repository/taskRepository");
 
 const app = express();
-
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const options = {
     definition: {
         openapi: "3.0.0",
         info: {
             title: "Task API",
-            version: "2.0",
-            description: "SQLite CRUD API"
+            version: "3.0",
+            description: "PostgreSQL CRUD API"
         },
         servers: [
             {
@@ -28,18 +28,14 @@ const options = {
 };
 
 const swaggerSpec = swaggerJsdoc(options);
-
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get("/", (req, res) => {
     res.json({
         name: "Task API",
-        version: "2.0",
-        database: "SQLite",
-        endpoints: [
-            "/tasks",
-            "/tasks/:id"
-        ]
+        version: "3.0",
+        database: "PostgreSQL",
+        endpoints: ["/tasks", "/tasks/:id"]
     });
 });
 
@@ -52,19 +48,13 @@ app.get("/", (req, res) => {
  *       200:
  *         description: List of tasks
  */
-
-app.get("/tasks", (req, res) => {
-
-    const tasks = db.prepare("SELECT * FROM tasks").all();
-
-    const formatted = tasks.map(task => ({
-        id: task.id,
-        title: task.title,
-        done: Boolean(task.done)
-    }));
-
-    res.json(formatted);
-
+app.get("/tasks", async (req, res, next) => {
+    try {
+        const tasks = await taskRepository.getAllTasks();
+        res.json(tasks);
+    } catch (error) {
+        next(error);
+    }
 });
 
 /**
@@ -72,39 +62,25 @@ app.get("/tasks", (req, res) => {
  * /tasks/{id}:
  *   get:
  *     summary: Get one task
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Task found
- *       404:
- *         description: Task not found
  */
+app.get("/tasks/:id", async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
 
-app.get("/tasks/:id", (req, res) => {
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ error: "Invalid task ID" });
+        }
 
-    const id = Number(req.params.id);
+        const task = await taskRepository.getTaskById(id);
 
-    const task = db
-        .prepare("SELECT * FROM tasks WHERE id = ?")
-        .get(id);
+        if (!task) {
+            return res.status(404).json({ error: `Task ${id} not found` });
+        }
 
-    if (!task) {
-        return res.status(404).json({
-            error: `Task ${id} not found`
-        });
+        res.json(task);
+    } catch (error) {
+        next(error);
     }
-
-    res.json({
-        id: task.id,
-        title: task.title,
-        done: Boolean(task.done)
-    });
-
 });
 
 /**
@@ -112,44 +88,20 @@ app.get("/tasks/:id", (req, res) => {
  * /tasks:
  *   post:
  *     summary: Create a task
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               title:
- *                 type: string
- *     responses:
- *       201:
- *         description: Task created
  */
+app.post("/tasks", async (req, res, next) => {
+    try {
+        const { title } = req.body;
 
-app.post("/tasks", (req, res) => {
+        if (typeof title !== "string" || !title.trim()) {
+            return res.status(400).json({ error: "Title is required" });
+        }
 
-    const { title } = req.body;
-
-    if (!title || title.trim() === "") {
-        return res.status(400).json({
-            error: "Title is required"
-        });
+        const newTask = await taskRepository.createTask(title.trim());
+        res.status(201).json(newTask);
+    } catch (error) {
+        next(error);
     }
-
-    const result = db
-        .prepare("INSERT INTO tasks (title, done) VALUES (?, ?)")
-        .run(title, 0);
-
-    const newTask = db
-        .prepare("SELECT * FROM tasks WHERE id = ?")
-        .get(result.lastInsertRowid);
-
-    res.status(201).json({
-        id: newTask.id,
-        title: newTask.title,
-        done: Boolean(newTask.done)
-    });
-
 });
 
 /**
@@ -157,62 +109,42 @@ app.post("/tasks", (req, res) => {
  * /tasks/{id}:
  *   put:
  *     summary: Update a task
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               title:
- *                 type: string
- *               done:
- *                 type: boolean
- *     responses:
- *       200:
- *         description: Updated
  */
+app.put("/tasks/:id", async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
 
-// Update task
-app.put("/tasks/:id", (req, res) => {
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ error: "Invalid task ID" });
+        }
 
-    const id = Number(req.params.id);
+        const existingTask = await taskRepository.getTaskById(id);
 
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+        if (!existingTask) {
+            return res.status(404).json({ error: `Task ${id} not found` });
+        }
 
-    if (!task) {
-        return res.status(404).json({
-            error: `Task ${id} not found`
-        });
+        const { title, done } = req.body;
+
+        if (title !== undefined &&
+            (typeof title !== "string" || !title.trim())) {
+            return res.status(400).json({ error: "Title must be a non-empty string" });
+        }
+
+        if (done !== undefined && typeof done !== "boolean") {
+            return res.status(400).json({ error: "Done must be a boolean" });
+        }
+
+        const updatedTask = await taskRepository.updateTask(
+            id,
+            title !== undefined ? title.trim() : existingTask.title,
+            done !== undefined ? done : existingTask.done
+        );
+
+        res.json(updatedTask);
+    } catch (error) {
+        next(error);
     }
-
-    const { title, done } = req.body;
-
-    const newTitle = title !== undefined ? title : task.title;
-    const newDone = done !== undefined ? (done ? 1 : 0) : task.done;
-
-    db.prepare(`
-        UPDATE tasks
-        SET title = ?, done = ?
-        WHERE id = ?
-    `).run(newTitle, newDone, id);
-
-    const updatedTask = db
-        .prepare("SELECT * FROM tasks WHERE id = ?")
-        .get(id);
-
-    res.json({
-        id: updatedTask.id,
-        title: updatedTask.title,
-        done: Boolean(updatedTask.done)
-    });
-
 });
 
 /**
@@ -220,36 +152,45 @@ app.put("/tasks/:id", (req, res) => {
  * /tasks/{id}:
  *   delete:
  *     summary: Delete a task
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       204:
- *         description: Deleted
  */
+app.delete("/tasks/:id", async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
 
-// Delete task
-app.delete("/tasks/:id", (req, res) => {
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ error: "Invalid task ID" });
+        }
 
-    const id = Number(req.params.id);
+        const deletedTask = await taskRepository.deleteTask(id);
 
-    const result = db
-        .prepare("DELETE FROM tasks WHERE id = ?")
-        .run(id);
+        if (!deletedTask) {
+            return res.status(404).json({ error: `Task ${id} not found` });
+        }
 
-    if (result.changes === 0) {
-        return res.status(404).json({
-            error: `Task ${id} not found`
-        });
+        res.status(204).send();
+    } catch (error) {
+        next(error);
     }
-
-    res.status(204).send();
-
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+// Central error handler
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
 });
+
+// Initialize database before starting API
+async function startServer() {
+    try {
+        await taskRepository.initializeDatabase();
+
+        app.listen(PORT, () => {
+            console.log(`Server running on http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error("Failed to start server:", error);
+        process.exit(1);
+    }
+}
+
+startServer();
