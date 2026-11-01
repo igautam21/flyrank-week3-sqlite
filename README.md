@@ -1,175 +1,234 @@
 
-# FlyRank Backend Assignment – Containerized Task API
+# FlyRank Task API – Authentication & Authorization
 
-A RESTful Task Management API built with Node.js, Express.js, PostgreSQL, and Docker. This project demonstrates CRUD operations, database persistence, and containerized deployment using Docker Compose.
-
-## Tech Stack
-
-- Node.js 22
-- Express.js
-- PostgreSQL 17
-- pg (node-postgres)
-- Docker
-- Docker Compose
-- Swagger UI
+A RESTful Task Management API built using Node.js, Express.js, PostgreSQL and Supabase Authentication. The project implements user signup, login, logout, JWT verification and protected API routes.
 
 ## Features
 
-- Create, read, update, and delete tasks.
+- User registration using Supabase Auth.
+- User login with email and password.
+- Password recovery through email.
+- User logout and application-level token revocation.
+- JWT-based authentication middleware.
+- Protected Task CRUD endpoints.
 - PostgreSQL database integration.
-- Parameterized SQL queries to prevent SQL injection.
-- Automatic database table creation.
-- Initial task seeding when the table is empty.
-- Input validation and proper HTTP status codes.
+- Swagger UI API documentation.
+- Docker and Docker Compose support.
 - Persistent PostgreSQL storage using Docker volumes.
-- Swagger API documentation.
+
+## Technology Stack
+
+| Technology | Purpose |
+|---|---|
+| Node.js | Backend runtime |
+| Express.js | REST API framework |
+| PostgreSQL | Database |
+| Supabase Auth | User authentication |
+| JWT | Token-based authorization |
+| pg | PostgreSQL client |
+| Swagger | API documentation |
+| Docker | Containerization |
+| Docker Compose | Multi-container management |
 
 ## Project Structure
 
 ```text
 flyrank-week3-sqlite/
+│
+├── config/
+│   └── supabase.js
+│
 ├── repository/
 │   └── taskRepository.js
-├── database.js
-├── server.js
+│
+├── server/
+│   ├── middleware/
+│   │   └── authMiddleware.js
+│   ├── routes/
+│   │   └── authRoutes.js
+│   └── utils/
+│       └── tokenBlacklist.js
+│
+├── .env
+├── .env.example
+├── .gitignore
+├── .dockerignore
 ├── Dockerfile
 ├── docker-compose.yml
-├── .dockerignore
-├── .env.example
 ├── package.json
+├── package-lock.json
+├── server.js
 └── README.md
 ```
 
-## Environment Variables
+## Installation and Setup
 
-Create a `.env` file in the project root:
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/igautam21/flyrank-week3-sqlite.git
+cd flyrank-week3-sqlite
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment variables
+
+Create a `.env` file in the project root.
 
 ```env
-DATABASE_URL=postgres://postgres:your_password@localhost:5432/tasks
-POSTGRES_PASSWORD=your_password
+PORT=3000
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_database_password
+DB_NAME=tasks
+
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_publishable_key
 ```
 
-Use the same password for both variables.
+Replace the placeholder values with your own configuration.
 
-Never commit your actual `.env` file. Use `.env.example` as a template.
+**Important:** Never commit your `.env` file or expose your Supabase keys.
 
-## Run with Docker Compose
+### 4. Start PostgreSQL
 
-### Prerequisites
-
-- Docker Desktop
-- Docker Compose
-
-### Start the application
-
-```bash
-docker compose up --build -d
-```
-
-This starts:
-- PostgreSQL database on port 5432.
-- Express API on port 3000.
-
-The API waits for PostgreSQL to become healthy before starting.
-
-### Check containers
-
-```bash
-docker compose ps
-```
-
-### View API logs
-
-```bash
-docker compose logs api
-```
-
-### Stop containers
-
-```bash
-docker compose down
-```
-
-PostgreSQL data is stored in the named Docker volume `taskdata` and persists after containers are removed.
-
-To start again:
+If using Docker Compose:
 
 ```bash
 docker compose up -d
 ```
 
-Do not use `docker compose down -v` if you want to preserve database data.
+### 5. Start the backend
 
-## API Documentation
+```bash
+node server.js
+```
 
-Swagger UI:
+The server runs at:
 
-http://localhost:3000/docs
+```text
+http://localhost:3000
+```
 
 ## API Endpoints
 
-| Method | Endpoint | Description | Success Status |
-|---|---|---|---|
-| GET | /tasks | Get all tasks | 200 |
-| GET | /tasks/:id | Get a task by ID | 200 |
-| POST | /tasks | Create a task | 201 |
-| PUT | /tasks/:id | Update a task | 200 |
-| DELETE | /tasks/:id | Delete a task | 204 |
+### Authentication APIs
 
-Error responses:
-- 400 – Invalid input
-- 404 – Task not found
-- 500 – Internal server error
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/auth/signup` | Register a new user |
+| POST | `/auth/login` | Login an existing user |
+| POST | `/auth/logout` | Logout and revoke the current token |
 
-## Example API Requests
+### Task APIs
 
-### Get all tasks
+All task endpoints require a valid Bearer access token.
 
-```bash
-curl -i http://localhost:3000/tasks
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/tasks` | Get all tasks |
+| GET | `/tasks/:id` | Get a task by ID |
+| POST | `/tasks` | Create a new task |
+| PUT | `/tasks/:id` | Update a task |
+| DELETE | `/tasks/:id` | Delete a task |
+
+## Authentication Flow
+
+1. A user registers using the signup endpoint.
+2. Supabase Auth creates the user account.
+3. The user logs in using email and password.
+4. Supabase returns an access token.
+5. The client sends the token in the Authorization header.
+6. Authentication middleware verifies the token with Supabase.
+7. Protected task endpoints become accessible.
+8. On logout, the application adds the token to its denylist.
+
+### Authorization Header
+
+```http
+Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
 
-### Get a task by ID
+### Example Login Request
 
-```bash
-curl -i http://localhost:3000/tasks/1
+```http
+POST /auth/login
+Content-Type: application/json
 ```
 
-### Create a task
-
-```bash
-curl -i -X POST http://localhost:3000/tasks \
--H "Content-Type: application/json" \
--d '{"title":"Learn Docker"}'
+```json
+{
+  "email": "user@example.com",
+  "password": "your_password"
+}
 ```
 
-### Update a task
+### Example Signup Request
 
-```bash
-curl -i -X PUT http://localhost:3000/tasks/1 \
--H "Content-Type: application/json" \
--d '{"title":"Learn PostgreSQL","done":true}'
+```http
+POST /auth/signup
+Content-Type: application/json
 ```
 
-### Delete a task
-
-```bash
-curl -i -X DELETE http://localhost:3000/tasks/1
+```json
+{
+  "email": "user@example.com",
+  "password": "StrongPass@123"
+}
 ```
 
-## Database Persistence
+## Swagger API Documentation
 
-PostgreSQL data is stored in a named Docker volume:
+Interactive API documentation is available at:
 
-`taskdata`
+```text
+http://localhost:3000/docs
+```
 
-The volume is mounted at:
+Swagger supports:
+- Viewing all available endpoints.
+- Testing signup and login.
+- Authorizing requests using JWT Bearer tokens.
+- Testing protected task operations.
+- Viewing API request and response details.
 
-`/var/lib/postgresql/data`
+## Security Implementation
 
-Data persistence was verified by stopping and recreating the Docker Compose containers and confirming that the original tasks remained available.
+- Supabase handles user authentication.
+- JWT access tokens are verified using Supabase.
+- Authentication middleware protects task endpoints.
+- Requests without valid tokens receive HTTP 401.
+- Logged-out tokens are rejected using an application-level denylist.
+- Environment variables are used for sensitive configuration.
 
-## License
+**Note:** The current token denylist uses an in-memory JavaScript Set. It resets when the server restarts and is intended for demonstration purposes. Production deployments should use persistent revocation storage with token-expiry handling.
 
-ISC
+## Testing
 
+The APIs were tested using Postman and Swagger UI.
+
+| Test | Expected Result |
+|---|---|
+| Successful signup | 201 Created |
+| Successful login | 200 OK |
+| Missing authentication token | 401 Unauthorized |
+| Valid token accessing tasks | 200 OK |
+| Successful logout | 200 OK |
+| Revoked token accessing tasks | 401 Unauthorized |
+
+## Author
+
+**Gautam**
+
+GitHub: https://github.com/igautam21
+
+---
+
+**Project:** FlyRank Backend AI Engineering Internship – Authentication Assignment
