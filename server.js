@@ -89,6 +89,53 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes);
 
 // ==========================================
+// PUBLIC & PROTECTED PROFILE ROUTES
+// ==========================================
+
+/**
+ * @swagger
+ * /public/info:
+ *   get:
+ *     summary: Get public information
+ *     tags: [Public]
+ *     responses:
+ *       200:
+ *         description: Public information
+ */
+
+app.get("/public/info", (req, res) => {
+    res.status(200).json({
+        message: "Welcome stranger! This info is public."
+    });
+});
+
+/**
+ * @swagger
+ * /protected/profile:
+ *   get:
+ *     summary: Get authenticated user profile
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Authenticated user profile
+ *       401:
+ *         description: Unauthorized
+ */
+
+app.get("/protected/profile", authenticateUser, (req, res) => {
+    res.status(200).json({
+        message: "Profile retrieved successfully",
+        user: {
+            id: req.user.id,
+            email: req.user.email,
+            created_at: req.user.created_at
+        }
+    });
+});
+
+// ==========================================
 // TASK API ROUTES (PROTECTED)
 // ==========================================
 

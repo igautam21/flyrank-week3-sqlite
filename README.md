@@ -1,7 +1,6 @@
-
 # FlyRank Task API – Authentication & Authorization
 
-A RESTful Task Management API built using Node.js, Express.js, PostgreSQL and Supabase Authentication. The project implements user signup, login, logout, JWT verification and protected API routes.
+A RESTful Task Management API built using Node.js, Express.js, PostgreSQL and Supabase Authentication. This project implements user signup, login, logout, JWT verification, and protected API routes.
 
 ## Features
 
@@ -10,6 +9,8 @@ A RESTful Task Management API built using Node.js, Express.js, PostgreSQL and Su
 - Password recovery through email.
 - User logout and application-level token revocation.
 - JWT-based authentication middleware.
+- Protected user profile endpoint.
+- Public information endpoint.
 - Protected Task CRUD endpoints.
 - PostgreSQL database integration.
 - Swagger UI API documentation.
@@ -48,6 +49,9 @@ flyrank-week3-sqlite/
 │   │   └── authRoutes.js
 │   └── utils/
 │       └── tokenBlacklist.js
+│
+├── public/
+│   └── reset-password.html
 │
 ├── .env
 ├── .env.example
@@ -95,7 +99,7 @@ SUPABASE_KEY=your_supabase_publishable_key
 
 Replace the placeholder values with your own configuration.
 
-**Important:** Never commit your `.env` file or expose your Supabase keys.
+**Important:** Never commit your `.env` file or expose your Supabase keys. Use `.env.example` as a configuration reference.
 
 ### 4. Start PostgreSQL
 
@@ -121,11 +125,18 @@ http://localhost:3000
 
 ### Authentication APIs
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/auth/signup` | Register a new user |
-| POST | `/auth/login` | Login an existing user |
-| POST | `/auth/logout` | Logout and revoke the current token |
+| Method | Endpoint | Description | Authentication |
+|---|---|---|---|
+| POST | `/auth/signup` | Register a new user | Not required |
+| POST | `/auth/login` | Login an existing user | Not required |
+| POST | `/auth/logout` | Logout and revoke the current token | Required |
+
+### Protected and Public APIs
+
+| Method | Endpoint | Description | Authentication |
+|---|---|---|---|
+| GET | `/protected/profile` | Get authenticated user profile | Required |
+| GET | `/public/info` | Get public information | Not required |
 
 ### Task APIs
 
@@ -146,28 +157,15 @@ All task endpoints require a valid Bearer access token.
 3. The user logs in using email and password.
 4. Supabase returns an access token.
 5. The client sends the token in the Authorization header.
-6. Authentication middleware verifies the token with Supabase.
-7. Protected task endpoints become accessible.
-8. On logout, the application adds the token to its denylist.
+6. Authentication middleware verifies the token using `supabase.auth.getUser(token)`.
+7. Protected endpoints become accessible after successful verification.
+8. On logout, the application adds the token to its denylist and performs the Supabase logout operation.
+9. Subsequent requests using the revoked token are rejected.
 
 ### Authorization Header
 
 ```http
 Authorization: Bearer YOUR_ACCESS_TOKEN
-```
-
-### Example Login Request
-
-```http
-POST /auth/login
-Content-Type: application/json
-```
-
-```json
-{
-  "email": "user@example.com",
-  "password": "your_password"
-}
 ```
 
 ### Example Signup Request
@@ -184,6 +182,44 @@ Content-Type: application/json
 }
 ```
 
+### Example Login Request
+
+```http
+POST /auth/login
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "password": "your_password"
+}
+```
+
+### Example Protected Profile Response
+
+```json
+{
+  "message": "Profile retrieved successfully",
+  "user": {
+    "id": "USER_ID",
+    "email": "user@example.com",
+    "created_at": "TIMESTAMP"
+  }
+}
+```
+
+## HTTP Response Codes
+
+| Status Code | Description |
+|---|---|
+| 200 OK | Successful login or data retrieval |
+| 201 Created | Successful user registration |
+| 204 No Content | Successful logout |
+| 400 Bad Request | Missing or invalid required input |
+| 401 Unauthorized | Missing, invalid, expired or revoked token, or invalid login credentials |
+| 500 Internal Server Error | Unexpected server-side error |
+
 ## Swagger API Documentation
 
 Interactive API documentation is available at:
@@ -192,36 +228,45 @@ Interactive API documentation is available at:
 http://localhost:3000/docs
 ```
 
-Swagger supports:
-- Viewing all available endpoints.
+Swagger UI supports:
+
+- Viewing all available API endpoints.
 - Testing signup and login.
 - Authorizing requests using JWT Bearer tokens.
-- Testing protected task operations.
+- Testing protected profile and task operations.
 - Viewing API request and response details.
+
+### Swagger Screenshot
+
+Add a screenshot of the Swagger UI here after capturing the complete endpoint list.
 
 ## Security Implementation
 
 - Supabase handles user authentication.
 - JWT access tokens are verified using Supabase.
-- Authentication middleware protects task endpoints.
+- Reusable authentication middleware protects multiple endpoints.
 - Requests without valid tokens receive HTTP 401.
 - Logged-out tokens are rejected using an application-level denylist.
 - Environment variables are used for sensitive configuration.
+- Public endpoints remain accessible without authentication.
 
-**Note:** The current token denylist uses an in-memory JavaScript Set. It resets when the server restarts and is intended for demonstration purposes. Production deployments should use persistent revocation storage with token-expiry handling.
+**Note:** The current token denylist uses an in-memory JavaScript `Set`. It resets when the server restarts and is intended for demonstration purposes. Production deployments should use persistent revocation storage with token-expiry handling.
 
 ## Testing
 
 The APIs were tested using Postman and Swagger UI.
 
-| Test | Expected Result |
-|---|---|
-| Successful signup | 201 Created |
-| Successful login | 200 OK |
-| Missing authentication token | 401 Unauthorized |
-| Valid token accessing tasks | 200 OK |
-| Successful logout | 200 OK |
-| Revoked token accessing tasks | 401 Unauthorized |
+| Test Case | Expected Result | Result |
+|---|---|---|
+| Successful signup | 201 Created | Passed |
+| Successful login | 200 OK | Passed |
+| Public information endpoint | 200 OK | Passed |
+| Profile without authentication | 401 Unauthorized | Passed |
+| Profile with valid token | 200 OK | Passed |
+| Profile with invalid token | 401 Unauthorized | Passed |
+| Successful logout | 204 No Content | Passed |
+| Reuse revoked token | 401 Unauthorized | Passed |
+| Swagger Bearer authorization | 200 OK | Passed |
 
 ## Author
 

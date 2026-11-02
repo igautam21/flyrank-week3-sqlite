@@ -4,6 +4,7 @@ const router = express.Router();
 
 const supabase = require("../../config/supabase");
 const { addToken } = require("../utils/tokenBlacklist");
+const authenticateUser = require("../middleware/authMiddleware");
 
 // ==========================================
 // SIGNUP API
@@ -35,7 +36,7 @@ const { addToken } = require("../utils/tokenBlacklist");
  *       201:
  *         description: Signup successful
  *       400:
- *         description: Signup failed
+ *         description: Missing input or signup failed
  */
 router.post("/signup", async (req, res) => {
     try {
@@ -103,9 +104,11 @@ router.post("/signup", async (req, res) => {
  *                 example: StrongPass@123
  *     responses:
  *       200:
- *         description: Login successful
+ *         description: Login successful. Returns access and refresh tokens.
+ *       400:
+ *         description: Missing email or password
  *       401:
- *         description: Invalid credentials
+ *         description: Invalid login credentials
  */
 router.post("/login", async (req, res) => {
     try {
@@ -125,7 +128,7 @@ router.post("/login", async (req, res) => {
 
         if (error) {
             return res.status(401).json({
-                message: error.message
+                message: "Invalid login credentials"
             });
         }
 
@@ -145,7 +148,7 @@ router.post("/login", async (req, res) => {
 });
 
 // ==========================================
-// LOGOUT API
+// LOGOUT API (PROTECTED)
 // ==========================================
 
 /**
@@ -157,34 +160,16 @@ router.post("/login", async (req, res) => {
  *     security:
  *       - bearerAuth: []
  *     responses:
- *       200:
- *         description: Logout successful and token revoked
+ *       204:
+ *         description: Logout successful. No response body.
  *       401:
- *         description: Missing or invalid token
+ *         description: Missing, invalid or expired token
  */
-router.post("/logout", async (req, res) => {
+router.post("/logout", authenticateUser, async (req, res) => {
     try {
-        const authHeader = req.headers.authorization;
+        const token = req.headers.authorization.split(" ")[1];
 
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
-            return res.status(401).json({
-                message: "Authentication token required"
-            });
-        }
-
-        const token = authHeader.split(" ")[1];
-
-        // Verify token with Supabase
-        const { data, error } =
-            await supabase.auth.getUser(token);
-
-        if (error || !data.user) {
-            return res.status(401).json({
-                message: "Invalid or expired token"
-            });
-        }
-
-        // Revoke token in our application
+        // Add token to application blacklist
         addToken(token);
 
         // Create a user-specific Supabase client
@@ -206,17 +191,20 @@ router.post("/logout", async (req, res) => {
             }
         );
 
-        // Revoke Supabase session
+        // Revoke the Supabase session
         const { error: logoutError } =
             await userSupabase.auth.signOut();
 
         if (logoutError) {
             console.error("Supabase logout error:", logoutError);
+
+            return res.status(500).json({
+                message: "Supabase logout failed"
+            });
         }
 
-        return res.status(200).json({
-            message: "Logout successful. Token revoked."
-        });
+        // HTTP 204 means successful response with no body
+        return res.status(204).send();
 
     } catch (error) {
         console.error("Logout error:", error);
